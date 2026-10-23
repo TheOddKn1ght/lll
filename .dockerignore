@@ -1,0 +1,17 @@
+node_modules
+dist
+data
+backups
+.git
+.arc
+.agents
+.codex
+.env
+.env.*
+!.env.example
+nginx/tls
+coverage
+reports
+*.sqlite*
+*.log
+.DS_Store

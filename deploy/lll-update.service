@@ -1,0 +1,11 @@
+[Unit]
+Description=Update lll from its configured repository branch
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/lll update
+TimeoutStartSec=30min
+UMask=0077

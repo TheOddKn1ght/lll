@@ -1,0 +1,18 @@
+# Managed by scripts/vps.sh, on top of compose.yaml. nginx runs on the host.
+services:
+  app:
+    image: lll:${LLL_REVISION:?Set the deployed revision}
+    environment:
+      DATABASE_PATH: ${DATABASE_PATH:-/data/lll.sqlite}
+    ports: !override
+      - "127.0.0.1:${APP_PORT:-8080}:3000"
+    logging: &bounded-logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  backup:
+    image: lll:${LLL_REVISION:?Set the deployed revision}
+    environment:
+      DATABASE_PATH: ${DATABASE_PATH:-/data/lll.sqlite}
+    logging: *bounded-logs
