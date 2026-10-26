@@ -9,7 +9,9 @@ for (const [name, size] of [
 ] as const)
   test(`${name} contains valid PNG chunks and zlib-compressed pixels`, async () => {
     const png = Buffer.from(
-      await Bun.file(new URL(`../public/icons/${name}`, import.meta.url)).arrayBuffer(),
+      await Bun.file(
+        new URL(`../public/icons/${name}`, import.meta.url),
+      ).arrayBuffer(),
     );
     expect(png.subarray(0, 8)).toEqual(
       Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),

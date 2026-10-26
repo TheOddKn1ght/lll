@@ -6,7 +6,10 @@ import {
 } from "../src/server/application";
 
 const applications: ReturnType<typeof createApplication>[] = [];
-const locationDescriptor = Object.getOwnPropertyDescriptor(globalThis, "location");
+const locationDescriptor = Object.getOwnPropertyDescriptor(
+  globalThis,
+  "location",
+);
 afterEach(() => {
   for (const app of applications.splice(0)) app.close();
   if (locationDescriptor)
@@ -225,7 +228,9 @@ test("stores salted Argon2id hashes and revokes sessions on password reset", asy
   expect(await reset.text()).not.toContain(replacement);
   const updated = app.repo.userByName("guest")!;
   expect(updated.password_hash).not.toBe(guest.password_hash);
-  expect(await Bun.password.verify(replacement, updated.password_hash)).toBe(true);
+  expect(await Bun.password.verify(replacement, updated.password_hash)).toBe(
+    true,
+  );
   const me = await app.fetch(
     new Request("https://cards.example.com/api/auth/me", {
       headers: { Cookie: guestCookie },
