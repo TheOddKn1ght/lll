@@ -9,6 +9,7 @@ import type {
 } from "./shared/types";
 import { SCHEDULER_VERSION } from "./shared/types";
 import { descendantDeckIds, replayCard } from "./shared/scheduler";
+import { isSecureAccountOrigin } from "./shared/transport";
 export { cardPresentation, getQueue } from "./shared/scheduler";
 
 export class APIError extends Error {
@@ -24,6 +25,22 @@ const publicAuth = (path: string) =>
   /^\/api\/auth\/(me|login|register|setup)(?:\?|$)/.test(path);
 const accountHeaders = (id: string) => ({ "X-Account-ID": id });
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (typeof location !== "undefined") {
+    const page = new URL(location.href);
+    if (!isSecureAccountOrigin(page))
+      throw new APIError(
+        "Open this app over HTTPS to protect your account.",
+        403,
+        "INSECURE_TRANSPORT",
+      );
+    const target = new URL(path, page);
+    if (target.origin !== page.origin || target.username || target.password)
+      throw new APIError(
+        "Account requests must stay on this app’s origin.",
+        403,
+        "INVALID_API_ORIGIN",
+      );
+  }
   const headers = new Headers(init.headers);
   if (!publicAuth(path) && state.user && !headers.has("X-Account-ID"))
     headers.set("X-Account-ID", state.user.id);
@@ -34,6 +51,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers,
     credentials: "same-origin",
     cache: "no-store",
+    redirect: "error",
   });
   if (!response.ok) {
     let message = `Request failed (${response.status})`;

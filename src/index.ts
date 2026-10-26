@@ -41,7 +41,7 @@ async function staticFile(pathname: string) {
 
 const server = serve({
   port: Number(process.env.PORT || 3000),
-  hostname: process.env.HOST || "0.0.0.0",
+  hostname: process.env.HOST || (production ? "0.0.0.0" : "127.0.0.1"),
   maxRequestBodySize: 100 * 1024 * 1024,
   routes: {
     "/": index,

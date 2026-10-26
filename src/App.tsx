@@ -545,6 +545,8 @@ function Auth({
           bootstrapToken,
         }),
       );
+      setPassword("");
+      setBootstrapToken("");
       if (invite) history.replaceState({}, "", location.pathname);
       await onSuccess();
     } catch (e) {

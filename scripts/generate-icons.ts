@@ -1,4 +1,6 @@
 /** Dependency-free rasterization of the app's own geometric icon. */
+import { deflateSync } from "node:zlib";
+
 const table = Array.from({ length: 256 }, (_, value) => {
   let crc = value;
   for (let i = 0; i < 8; i++)
@@ -105,7 +107,8 @@ async function raster(size: number, name: string, maskable = false) {
   const png = Buffer.concat([
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     chunk("IHDR", header),
-    chunk("IDAT", Bun.deflateSync(raw)),
+    // PNG requires a zlib header and Adler-32 trailer around DEFLATE data.
+    chunk("IDAT", deflateSync(raw)),
     chunk("IEND", new Uint8Array()),
   ]);
   await Bun.write(new URL(`../public/icons/${name}`, import.meta.url), png);

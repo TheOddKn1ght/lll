@@ -1,14 +1,14 @@
 /* Only the public application shell is cached here. Private data lives in
  * account-isolated IndexedDB, and authenticated API requests always bypass SW. */
-const SHELL = "lll-shell-v1";
+const SHELL = "lll-shell-v2";
 const ASSETS = [
   "/",
   "/manifest.webmanifest",
   "/icons/icon.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/maskable-512.png",
-  "/icons/apple-touch-icon.png",
+  "/icons/icon-192.png?v=2",
+  "/icons/icon-512.png?v=2",
+  "/icons/maskable-512.png?v=2",
+  "/icons/apple-touch-icon.png?v=2",
 ];
 self.addEventListener("install", (event) => {
   event.waitUntil(

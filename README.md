@@ -95,6 +95,10 @@ Use `docker compose logs -f app` for app logs and `sudo journalctl -u nginx` for
 
 ## Accounts and recovery
 
+Passwords are stored only as salted Argon2id hashes (64 MiB memory, three passes), including accounts created or reset with the administrator command. The browser and API require HTTPS for account traffic; plain HTTP is allowed only on localhost, `127.0.0.1`, or `[::1]` for development. The browser refuses to send credentials from a remote HTTP page or to another origin and does not follow API redirects. Passwords are never saved in the offline library. TLS deployments issue HttpOnly, Secure, SameSite cookies, and API responses are not cached.
+
+Behind nginx, set `PUBLIC_ORIGIN` to the exact HTTPS origin, preserve `Host`, overwrite `X-Forwarded-Proto` with `https`, and keep the app port private as in the supplied Compose configuration. The API accepts that proxy header only for the configured HTTPS host. Remote HTTP origins are rejected at startup; the health endpoint remains available to the local container health check.
+
 Administrators can generate single-use invitations in Settings. Each invited account receives an independent private library and study history. Invitations expire after seven days. Password resets are available in the administrator section and revoke the account's existing sessions.
 
 Operator recovery and invitation commands:

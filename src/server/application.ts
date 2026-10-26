@@ -10,6 +10,7 @@ import type { ReviewEvent, User } from "../shared/types";
 import { handleImportRequest } from "../imports/handler";
 import { detectMedia } from "../imports/content";
 import { timingSafeEqual } from "node:crypto";
+import { isSecureAccountOrigin } from "../shared/transport";
 
 const SESSION_DAYS = 30;
 const cookieValue = (request: Request, name: string) =>
@@ -49,10 +50,23 @@ export interface ApplicationOptions {
 }
 
 export function createApplication(options: ApplicationOptions = {}) {
-  const repo = options.repository ?? new Repository(options.databasePath);
   const production =
     options.production ?? process.env.NODE_ENV === "production";
   const publicOrigin = options.publicOrigin ?? process.env.PUBLIC_ORIGIN;
+  const publicURL = publicOrigin ? new URL(publicOrigin) : undefined;
+  if (
+    publicURL &&
+    (!isSecureAccountOrigin(publicURL) ||
+      publicURL.username ||
+      publicURL.password ||
+      publicURL.pathname !== "/" ||
+      publicURL.search ||
+      publicURL.hash)
+  )
+    throw new Error(
+      "PUBLIC_ORIGIN must be an HTTPS origin. HTTP is allowed only on localhost.",
+    );
+  const repo = options.repository ?? new Repository(options.databasePath);
   const bootstrapToken = options.bootstrapToken ?? process.env.BOOTSTRAP_TOKEN;
   const now = options.now ?? Date.now;
   let passwordOperations = 0;
@@ -77,8 +91,25 @@ export function createApplication(options: ApplicationOptions = {}) {
         timeCost: 3,
       }),
     );
-  const sessionCookie = (value: string, expires: number) =>
-    `lll_session=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${expires}${production ? "; Secure" : ""}`;
+  const secureCookie = (request: Request) =>
+    production ||
+    publicURL?.protocol === "https:" ||
+    new URL(request.url).protocol === "https:";
+  const sessionCookie = (request: Request, value: string, expires: number) =>
+    `lll_session=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${expires}${secureCookie(request) ? "; Secure" : ""}`;
+
+  function secureTransport(request: Request, url: URL): boolean {
+    if (url.protocol === "https:") return true;
+    if (url.protocol !== "http:") return false;
+    // nginx terminates TLS and overwrites this header. Trust it only for the
+    // configured HTTPS host; keep the app port private behind that proxy.
+    if (publicURL?.protocol === "https:")
+      return (
+        url.host === publicURL.host &&
+        request.headers.get("x-forwarded-proto") === "https"
+      );
+    return isSecureAccountOrigin(url);
+  }
 
   async function json(request: Request) {
     assert(
@@ -111,7 +142,7 @@ export function createApplication(options: ApplicationOptions = {}) {
       .get(hash(raw), now()) as { user_id: string } | null;
     return row ? repo.getUser(row.user_id) : null;
   }
-  function loginResponse(user: User, status = 200) {
+  function loginResponse(request: Request, user: User, status = 200) {
     const raw = token();
     repo.db.query("DELETE FROM sessions WHERE expires_at<=?").run(now());
     repo.db
@@ -121,7 +152,9 @@ export function createApplication(options: ApplicationOptions = {}) {
       { user },
       {
         status,
-        headers: { "Set-Cookie": sessionCookie(raw, SESSION_DAYS * 86400) },
+        headers: {
+          "Set-Cookie": sessionCookie(request, raw, SESSION_DAYS * 86400),
+        },
       },
     );
   }
@@ -320,6 +353,12 @@ export function createApplication(options: ApplicationOptions = {}) {
     const path = url.pathname;
     const method = request.method;
     assert(path.startsWith("/api/"), "Route not found.", 404);
+    assert(
+      (path === "/api/health" && method === "GET") ||
+        secureTransport(request, url),
+      "Open this app over HTTPS to protect your account.",
+      403,
+    );
     if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       const expected = publicOrigin ? new URL(publicOrigin).origin : url.origin;
       const origin = request.headers.get("origin");
@@ -388,7 +427,7 @@ export function createApplication(options: ApplicationOptions = {}) {
           true,
         );
       });
-      return loginResponse(user, 201);
+      return loginResponse(request, user, 201);
     }
     if (path === "/api/auth/login" && method === "POST") {
       const input = await json(request);
@@ -409,7 +448,7 @@ export function createApplication(options: ApplicationOptions = {}) {
         : false;
       if (!valid) throw new HttpError(401, "Invalid username or password.");
       successful(key);
-      return loginResponse(repo.publicUser(row!));
+      return loginResponse(request, repo.publicUser(row!));
     }
     if (path === "/api/auth/register" && method === "POST") {
       const input = await json(request);
@@ -450,7 +489,7 @@ export function createApplication(options: ApplicationOptions = {}) {
         return repo.createUser(name, passwordHash, input.timeZone ?? "UTC");
       });
       successful(key);
-      return loginResponse(user, 201);
+      return loginResponse(request, user, 201);
     }
     if (path === "/api/auth/logout" && method === "POST") {
       const account = currentUser(request);
@@ -470,10 +509,10 @@ export function createApplication(options: ApplicationOptions = {}) {
           repo.db.query("DELETE FROM sessions WHERE hash=?").run(hash(raw));
       }
       const headers = new Headers();
-      headers.append("Set-Cookie", sessionCookie("", 0));
+      headers.append("Set-Cookie", sessionCookie(request, "", 0));
       headers.append(
         "Set-Cookie",
-        `recall_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${production ? "; Secure" : ""}`,
+        `recall_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureCookie(request) ? "; Secure" : ""}`,
       );
       return Response.json({ ok: true }, { headers });
     }
